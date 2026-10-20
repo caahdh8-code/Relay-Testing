@@ -12,32 +12,41 @@
     body {
       font-family: Arial, sans-serif;
       background: #f0f4f8;
-      text-align: center;
-      padding: 24px 12px;
       color: #222;
+      text-align: center;
+      padding: 20px 12px;
     }
+
     h1 { color: #174ea6; }
+
     .relay {
-      background: white;
       max-width: 400px;
       margin: 18px auto;
       padding: 20px;
+      background: white;
       border-radius: 14px;
       box-shadow: 0 3px 10px #0001;
     }
-    .status { font-weight: bold; margin: 14px; }
+
+    .status { font-weight: bold; }
+
     button {
       border: 0;
-      padding: 12px 24px;
+      padding: 12px 25px;
       margin: 5px;
       border-radius: 8px;
       color: white;
       font-size: 16px;
       cursor: pointer;
     }
+
     .on { background: #168447; }
     .off { background: #d93025; }
-    #connection { font-weight: bold; }
+
+    #connection {
+      overflow-wrap: anywhere;
+      font-weight: bold;
+    }
   </style>
 </head>
 
@@ -49,6 +58,7 @@
   <div id="controls"></div>
 
   <script>
+    // FIREBASE PROJECT: Relay-Testing (projek baharu)
     const firebaseConfig = {
       apiKey: "AIzaSyCLwdDM4-6FUgAv7mDvN1mNpn2zzpiJgJQ",
       authDomain: "relay-testing-f5dfd.firebaseapp.com",
@@ -60,48 +70,71 @@
       measurementId: "G-RXRKC0VETR"
     };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const root = "RelayTesting";
-    const controls = document.getElementById("controls");
+    const connection = document.getElementById("connection");
 
-    function showError(error) {
-      document.getElementById("connection").textContent =
-        "Firebase error: " + error.message;
+    try {
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.database();
+      const root = "RelayTesting";
+      const controls = document.getElementById("controls");
+
+      function showError(error) {
+        connection.textContent =
+          "Firebase error: " + error.code + " — " + error.message;
+      }
+
+      for (let i = 1; i <= 3; i++) {
+        const card = document.createElement("div");
+        card.className = "relay";
+        card.innerHTML = `
+          <h2>Relay ${i}</h2>
+          <p class="status" id="status${i}">Status: belum diketahui</p>
+          <button class="on" id="on${i}">ON</button>
+          <button class="off" id="off${i}">OFF</button>
+        `;
+        controls.appendChild(card);
+
+        const ref = db.ref(root + "/Relay" + i);
+
+        document.getElementById("on" + i).onclick = async () => {
+          connection.textContent = "Menghantar arahan Relay " + i + "...";
+          try {
+            await ref.set(true);
+            connection.textContent = "Arahan Relay " + i + " ON berjaya disimpan.";
+          } catch (error) {
+            showError(error);
+          }
+        };
+
+        document.getElementById("off" + i).onclick = async () => {
+          connection.textContent = "Menghantar arahan Relay " + i + "...";
+          try {
+            await ref.set(false);
+            connection.textContent = "Arahan Relay " + i + " OFF berjaya disimpan.";
+          } catch (error) {
+            showError(error);
+          }
+        };
+
+        ref.on("value", snapshot => {
+          const value = snapshot.val();
+          document.getElementById("status" + i).textContent =
+            "Status: " +
+            (value === true ? "ON" :
+             value === false ? "OFF" : "Belum ditetapkan");
+        }, showError);
+      }
+
+      db.ref(".info/connected").on("value", snapshot => {
+        if (snapshot.val()) {
+          connection.textContent = "Firebase connected — Relay-Testing";
+        } else {
+          connection.textContent = "Firebase disconnected";
+        }
+      });
+    } catch (error) {
+      connection.textContent = "Ralat konfigurasi: " + error.message;
     }
-
-    for (let i = 1; i <= 3; i++) {
-      const card = document.createElement("div");
-      card.className = "relay";
-      card.innerHTML = `
-        <h2>Relay ${i}</h2>
-        <p class="status" id="status${i}">Status: Unknown</p>
-        <button class="on" id="on${i}">ON</button>
-        <button class="off" id="off${i}">OFF</button>
-      `;
-      controls.appendChild(card);
-
-      const ref = db.ref(root + "/Relay" + i);
-
-      document.getElementById("on" + i).onclick = () =>
-        ref.set(true).catch(showError);
-
-      document.getElementById("off" + i).onclick = () =>
-        ref.set(false).catch(showError);
-
-      ref.on("value", snapshot => {
-        const value = snapshot.val();
-        document.getElementById("status" + i).textContent =
-          "Status: " +
-          (value === true ? "ON" :
-           value === false ? "OFF" : "Not set");
-      }, showError);
-    }
-
-    db.ref(".info/connected").on("value", snapshot => {
-      document.getElementById("connection").textContent =
-        snapshot.val() ? "Firebase connected" : "Firebase disconnected";
-    });
   </script>
 </body>
 </html>
