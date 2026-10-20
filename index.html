@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relay Testing</title>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f4f8;
+      text-align: center;
+      padding: 25px;
+      color: #222;
+    }
+
+    h1 { color: #174ea6; }
+
+    .relay {
+      background: white;
+      max-width: 400px;
+      margin: 18px auto;
+      padding: 20px;
+      border-radius: 14px;
+      box-shadow: 0 3px 10px #0001;
+    }
+
+    .status {
+      font-weight: bold;
+      margin: 12px;
+    }
+
+    button {
+      border: 0;
+      padding: 12px 22px;
+      margin: 5px;
+      border-radius: 8px;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .on { background: #168447; }
+    .off { background: #d93025; }
+  </style>
+</head>
+
+<body>
+  <h1>Relay Testing</h1>
+  <p>ESP32 Relay Control Panel</p>
+  <p id="connection">Connecting to Firebase...</p>
+
+  <div id="controls"></div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBCFpNma5QPo0iQEHpVpHQ04Kk_K5M1q8",
+      authDomain: "smart-lift-touchless.firebaseapp.com",
+      databaseURL: "https://smart-lift-touchless-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "smart-lift-touchless",
+      storageBucket: "smart-lift-touchless.firebasestorage.app",
+      messagingSenderId: "1014801320552",
+      appId: "1:1014801320552:web:08f6e19041336b2c9a09dd",
+      measurementId: "G-RR569DGJ5Y"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const root = "RelayTesting";
+
+    const controls = document.getElementById("controls");
+
+    for (let i = 1; i <= 3; i++) {
+      const card = document.createElement("div");
+      card.className = "relay";
+      card.innerHTML = `
+        <h2>Relay ${i}</h2>
+        <p class="status" id="status${i}">Status: Unknown</p>
+        <button class="on" id="on${i}">ON</button>
+        <button class="off" id="off${i}">OFF</button>
+      `;
+      controls.appendChild(card);
+
+      document.getElementById("on" + i).onclick = () =>
+        db.ref(root + "/Relay" + i).set(true)
+          .catch(showError);
+
+      document.getElementById("off" + i).onclick = () =>
+        db.ref(root + "/Relay" + i).set(false)
+          .catch(showError);
+
+      db.ref(root + "/Relay" + i).on("value", snapshot => {
+        const value = snapshot.val();
+        document.getElementById("status" + i).textContent =
+          "Status: " +
+          (value === true ? "ON" :
+           value === false ? "OFF" : "Not set");
+      }, showError);
+    }
+
+    function showError(error) {
+      document.getElementById("connection").textContent =
+        "Firebase error: " + error.message;
+    }
+
+    db.ref(".info/connected").on("value", snapshot => {
+      document.getElementById("connection").textContent =
+        snapshot.val() ? "Firebase connected" : "Firebase disconnected";
+    });
+  </script>
+</body>
+</html>
