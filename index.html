@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ms">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,12 +13,10 @@
       font-family: Arial, sans-serif;
       background: #f0f4f8;
       text-align: center;
-      padding: 25px;
+      padding: 24px 12px;
       color: #222;
     }
-
     h1 { color: #174ea6; }
-
     .relay {
       background: white;
       max-width: 400px;
@@ -27,24 +25,19 @@
       border-radius: 14px;
       box-shadow: 0 3px 10px #0001;
     }
-
-    .status {
-      font-weight: bold;
-      margin: 12px;
-    }
-
+    .status { font-weight: bold; margin: 14px; }
     button {
       border: 0;
-      padding: 12px 22px;
+      padding: 12px 24px;
       margin: 5px;
       border-radius: 8px;
       color: white;
       font-size: 16px;
       cursor: pointer;
     }
-
     .on { background: #168447; }
     .off { background: #d93025; }
+    #connection { font-weight: bold; }
   </style>
 </head>
 
@@ -57,21 +50,25 @@
 
   <script>
     const firebaseConfig = {
-      apiKey: "AIzaSyBCFpNma5QPo0iQEHpVpHQ04Kk_K5M1q8",
-      authDomain: "smart-lift-touchless.firebaseapp.com",
-      databaseURL: "https://smart-lift-touchless-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "smart-lift-touchless",
-      storageBucket: "smart-lift-touchless.firebasestorage.app",
-      messagingSenderId: "1014801320552",
-      appId: "1:1014801320552:web:08f6e19041336b2c9a09dd",
-      measurementId: "G-RR569DGJ5Y"
+      apiKey: "AIzaSyCLwdDM4-6FUgAv7mDvN1mNpn2zzpiJgJQ",
+      authDomain: "relay-testing-f5dfd.firebaseapp.com",
+      databaseURL: "https://relay-testing-f5dfd-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "relay-testing-f5dfd",
+      storageBucket: "relay-testing-f5dfd.firebasestorage.app",
+      messagingSenderId: "593606294584",
+      appId: "1:593606294584:web:be9faa41bc5ca5d13d3acd",
+      measurementId: "G-RXRKC0VETR"
     };
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     const root = "RelayTesting";
-
     const controls = document.getElementById("controls");
+
+    function showError(error) {
+      document.getElementById("connection").textContent =
+        "Firebase error: " + error.message;
+    }
 
     for (let i = 1; i <= 3; i++) {
       const card = document.createElement("div");
@@ -84,26 +81,21 @@
       `;
       controls.appendChild(card);
 
+      const ref = db.ref(root + "/Relay" + i);
+
       document.getElementById("on" + i).onclick = () =>
-        db.ref(root + "/Relay" + i).set(true)
-          .catch(showError);
+        ref.set(true).catch(showError);
 
       document.getElementById("off" + i).onclick = () =>
-        db.ref(root + "/Relay" + i).set(false)
-          .catch(showError);
+        ref.set(false).catch(showError);
 
-      db.ref(root + "/Relay" + i).on("value", snapshot => {
+      ref.on("value", snapshot => {
         const value = snapshot.val();
         document.getElementById("status" + i).textContent =
           "Status: " +
           (value === true ? "ON" :
            value === false ? "OFF" : "Not set");
       }, showError);
-    }
-
-    function showError(error) {
-      document.getElementById("connection").textContent =
-        "Firebase error: " + error.message;
     }
 
     db.ref(".info/connected").on("value", snapshot => {
