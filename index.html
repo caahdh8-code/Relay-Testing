@@ -1,140 +1,294 @@
 <!DOCTYPE html>
-<html lang="ms">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Relay Testing</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<title>ESP32 Relay Push Button</title>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f0f4f8;
-      color: #222;
-      text-align: center;
-      padding: 20px 12px;
-    }
+<style>
+* {
+  box-sizing: border-box;
+}
 
-    h1 { color: #174ea6; }
+body {
+  font-family: Arial, sans-serif;
+  background: #101827;
+  color: white;
+  text-align: center;
+  padding: 25px 15px;
+}
 
-    .relay {
-      max-width: 400px;
-      margin: 18px auto;
-      padding: 20px;
-      background: white;
-      border-radius: 14px;
-      box-shadow: 0 3px 10px #0001;
-    }
+h1 {
+  color: #38bdf8;
+  margin-bottom: 8px;
+}
 
-    .status { font-weight: bold; }
+.subtitle {
+  color: #cbd5e1;
+  margin-bottom: 25px;
+}
 
-    button {
-      border: 0;
-      padding: 12px 25px;
-      margin: 5px;
-      border-radius: 8px;
-      color: white;
-      font-size: 16px;
-      cursor: pointer;
-    }
+.container {
+  max-width: 450px;
+  margin: auto;
+}
 
-    .on { background: #168447; }
-    .off { background: #d93025; }
+.relay-card {
+  background: #1e293b;
+  padding: 25px;
+  margin-bottom: 20px;
+  border-radius: 18px;
+}
 
-    #connection {
-      overflow-wrap: anywhere;
-      font-weight: bold;
-    }
-  </style>
+.relay-card h2 {
+  margin-top: 0;
+}
+
+button {
+  width: 100%;
+  max-width: 230px;
+  height: 75px;
+  border: none;
+  border-radius: 15px;
+  background: #2563eb;
+  color: white;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+
+  /* Important for mobile touch */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button.pressed {
+  background: #16a34a;
+  transform: scale(0.96);
+}
+
+.status {
+  margin-top: 18px;
+  font-size: 17px;
+  font-weight: bold;
+  color: #f87171;
+}
+
+.status.on {
+  color: #4ade80;
+}
+
+#connection {
+  margin: 20px 0;
+  color: #facc15;
+}
+</style>
 </head>
 
 <body>
-  <h1>Relay Testing</h1>
-  <p>ESP32 Relay Control Panel</p>
-  <p id="connection">Connecting to Firebase...</p>
 
-  <div id="controls"></div>
+<h1>ESP32 RELAY CONTROL</h1>
 
-  <script>
-    // FIREBASE PROJECT: Relay-Testing (projek baharu)
-    const firebaseConfig = {
-      apiKey: "AIzaSyCLwdDM4-6FUgAv7mDvN1mNpn2zzpiJgJQ",
-      authDomain: "relay-testing-f5dfd.firebaseapp.com",
-      databaseURL: "https://relay-testing-f5dfd-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "relay-testing-f5dfd",
-      storageBucket: "relay-testing-f5dfd.firebasestorage.app",
-      messagingSenderId: "593606294584",
-      appId: "1:593606294584:web:be9faa41bc5ca5d13d3acd",
-      measurementId: "G-RXRKC0VETR"
-    };
+<p class="subtitle">
+Press and hold the button to activate relay
+</p>
 
-    const connection = document.getElementById("connection");
+<div id="connection">Connecting to Firebase...</div>
 
-    try {
-      firebase.initializeApp(firebaseConfig);
-      const db = firebase.database();
-      const root = "RelayTesting";
-      const controls = document.getElementById("controls");
+<div class="container">
 
-      function showError(error) {
-        connection.textContent =
-          "Firebase error: " + error.code + " — " + error.message;
+  <div class="relay-card">
+    <h2>RELAY 1</h2>
+    <button data-relay="Relay1">PRESS & HOLD</button>
+    <div class="status" id="status1">OFF</div>
+  </div>
+
+  <div class="relay-card">
+    <h2>RELAY 2</h2>
+    <button data-relay="Relay2">PRESS & HOLD</button>
+    <div class="status" id="status2">OFF</div>
+  </div>
+
+  <div class="relay-card">
+    <h2>RELAY 3</h2>
+    <button data-relay="Relay3">PRESS & HOLD</button>
+    <div class="status" id="status3">OFF</div>
+  </div>
+
+</div>
+
+<script>
+
+// FIREBASE DATABASE
+const databaseURL =
+"https://relay-testing-f5dfd-default-rtdb.asia-southeast1.firebasedatabase.app";
+
+let activeRelay = {};
+let heartbeat = {};
+let pointerRelay = {};
+
+function statusID(relay) {
+  if (relay === "Relay1") return "status1";
+  if (relay === "Relay2") return "status2";
+  return "status3";
+}
+
+// UPDATE FIREBASE
+async function updateFirebase(data) {
+
+  try {
+
+    const response = await fetch(
+      databaseURL + "/RelayTesting.json",
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(data)
       }
+    );
 
-      for (let i = 1; i <= 3; i++) {
-        const card = document.createElement("div");
-        card.className = "relay";
-        card.innerHTML = `
-          <h2>Relay ${i}</h2>
-          <p class="status" id="status${i}">Status: belum diketahui</p>
-          <button class="on" id="on${i}">ON</button>
-          <button class="off" id="off${i}">OFF</button>
-        `;
-        controls.appendChild(card);
-
-        const ref = db.ref(root + "/Relay" + i);
-
-        document.getElementById("on" + i).onclick = async () => {
-          connection.textContent = "Menghantar arahan Relay " + i + "...";
-          try {
-            await ref.set(true);
-            connection.textContent = "Arahan Relay " + i + " ON berjaya disimpan.";
-          } catch (error) {
-            showError(error);
-          }
-        };
-
-        document.getElementById("off" + i).onclick = async () => {
-          connection.textContent = "Menghantar arahan Relay " + i + "...";
-          try {
-            await ref.set(false);
-            connection.textContent = "Arahan Relay " + i + " OFF berjaya disimpan.";
-          } catch (error) {
-            showError(error);
-          }
-        };
-
-        ref.on("value", snapshot => {
-          const value = snapshot.val();
-          document.getElementById("status" + i).textContent =
-            "Status: " +
-            (value === true ? "ON" :
-             value === false ? "OFF" : "Belum ditetapkan");
-        }, showError);
-      }
-
-      db.ref(".info/connected").on("value", snapshot => {
-        if (snapshot.val()) {
-          connection.textContent = "Firebase connected — Relay-Testing";
-        } else {
-          connection.textContent = "Firebase disconnected";
-        }
-      });
-    } catch (error) {
-      connection.textContent = "Ralat konfigurasi: " + error.message;
+    if (!response.ok) {
+      throw new Error("Firebase update failed");
     }
-  </script>
+
+    document.getElementById("connection").textContent =
+      "Firebase Connected";
+
+    return true;
+
+  } catch (error) {
+
+    document.getElementById("connection").textContent =
+      "Firebase Connection Error";
+
+    return false;
+  }
+}
+
+// PRESS BUTTON
+async function pressButton(relay) {
+
+  if (activeRelay[relay]) return;
+
+  activeRelay[relay] = true;
+
+  const button = document.querySelector(
+    '[data-relay="' + relay + '"]'
+  );
+
+  button.classList.add("pressed");
+
+  const status = document.getElementById(statusID(relay));
+  status.textContent = "ON";
+  status.classList.add("on");
+
+  const heartbeatKey = relay + "Heartbeat";
+
+  const success = await updateFirebase({
+    [relay]: true,
+    [heartbeatKey]: Date.now()
+  });
+
+  if (!success) {
+    releaseButton(relay);
+    return;
+  }
+
+  // Send heartbeat while button is held
+  heartbeat[relay] = setInterval(() => {
+
+    if (activeRelay[relay]) {
+
+      updateFirebase({
+        [relay]: true,
+        [heartbeatKey]: Date.now()
+      });
+
+    }
+
+  }, 500);
+}
+
+// RELEASE BUTTON
+async function releaseButton(relay) {
+
+  if (!activeRelay[relay]) return;
+
+  activeRelay[relay] = false;
+
+  clearInterval(heartbeat[relay]);
+
+  const button = document.querySelector(
+    '[data-relay="' + relay + '"]'
+  );
+
+  button.classList.remove("pressed");
+
+  const status = document.getElementById(statusID(relay));
+  status.textContent = "OFF";
+  status.classList.remove("on");
+
+  await updateFirebase({
+    [relay]: false
+  });
+}
+
+// BUTTON TOUCH AND MOUSE EVENTS
+document.querySelectorAll("[data-relay]").forEach(button => {
+
+  const relay = button.dataset.relay;
+
+  button.addEventListener("pointerdown", event => {
+
+    event.preventDefault();
+
+    pointerRelay[event.pointerId] = relay;
+
+    button.setPointerCapture(event.pointerId);
+
+    pressButton(relay);
+  });
+
+  button.addEventListener("pointerup", event => {
+
+    releaseButton(relay);
+
+    delete pointerRelay[event.pointerId];
+  });
+
+  button.addEventListener("pointercancel", event => {
+
+    releaseButton(relay);
+
+    delete pointerRelay[event.pointerId];
+  });
+
+  button.addEventListener("lostpointercapture", () => {
+    releaseButton(relay);
+  });
+
+});
+
+// Release if browser loses focus
+window.addEventListener("blur", () => {
+
+  Object.keys(activeRelay).forEach(relay => {
+    releaseButton(relay);
+  });
+
+});
+
+// INITIALIZE ALL RELAYS OFF
+updateFirebase({
+  Relay1: false,
+  Relay2: false,
+  Relay3: false
+});
+
+</script>
+
 </body>
 </html>
