@@ -2,83 +2,46 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ESP32 Relay Control</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relay Push Button Control</title>
 
 <style>
-* {
-  box-sizing: border-box;
-}
-
 body {
-  margin: 0;
-  padding: 25px;
-  min-height: 100vh;
-  font-family: Arial, sans-serif;
   background: #101827;
   color: white;
+  font-family: Arial, sans-serif;
   text-align: center;
+  padding: 25px;
 }
 
-h1 {
-  margin-top: 25px;
-  color: #38bdf8;
-}
+h1 { color: #38bdf8; }
 
-.subtitle {
-  color: #b8c4d6;
-  margin-bottom: 35px;
-}
-
-.container {
-  max-width: 500px;
-  margin: auto;
-}
-
-.relay-card {
+.card {
   background: #1e293b;
   padding: 25px;
-  margin: 18px 0;
-  border-radius: 16px;
-  border: 1px solid #334155;
-}
-
-.relay-card h2 {
-  margin-top: 0;
+  margin: 20px auto;
+  max-width: 400px;
+  border-radius: 15px;
 }
 
 button {
   width: 100%;
-  padding: 18px;
+  padding: 20px;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #0284c7;
   color: white;
   font-size: 18px;
   font-weight: bold;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
-button:active {
-  background: #0369a1;
-  transform: scale(0.98);
 }
 
 button:disabled {
   background: #64748b;
-  cursor: not-allowed;
 }
 
 .status {
   margin-top: 15px;
-  color: #94a3b8;
-  font-size: 14px;
-}
-
-#connection {
-  margin: 20px 0;
-  color: #fbbf24;
+  color: #38bdf8;
 }
 </style>
 </head>
@@ -86,97 +49,90 @@ button:disabled {
 <body>
 
 <h1>ESP32 RELAY CONTROL</h1>
-<p class="subtitle">One Click Push Button System</p>
+<p>ONE CLICK PUSH BUTTON</p>
 
-<div id="connection">Connecting to Firebase...</div>
+<div id="connection">Connecting...</div>
 
-<div class="container">
-
-  <div class="relay-card">
-    <h2>RELAY 1</h2>
-    <button onclick="pressRelay('Relay1', this)">
-      PRESS RELAY 1
-    </button>
-    <div class="status" id="status1">Ready</div>
-  </div>
-
-  <div class="relay-card">
-    <h2>RELAY 2</h2>
-    <button onclick="pressRelay('Relay2', this)">
-      PRESS RELAY 2
-    </button>
-    <div class="status" id="status2">Ready</div>
-  </div>
-
-  <div class="relay-card">
-    <h2>RELAY 3</h2>
-    <button onclick="pressRelay('Relay3', this)">
-      PRESS RELAY 3
-    </button>
-    <div class="status" id="status3">Ready</div>
-  </div>
-
-</div>
+<div id="buttons"></div>
 
 <script>
 
-// FIREBASE CONFIGURATION
-const FIREBASE_URL =
-"https://relay-testing-f5dfd-default-rtdb.asia-southeast1.firebasedatabase.app";
+const FIREBASE =
+"https://relay-testing-f5dfd-default-rtdb.asia-southeast1.firebasedatabase.app/RelayTesting";
 
-// Send one-click command
-async function pressRelay(relayName, button) {
+const relays = ["Relay1", "Relay2", "Relay3"];
 
-  const number = relayName.replace("Relay", "");
-  const status = document.getElementById("status" + number);
+function createButtons() {
+  const area = document.getElementById("buttons");
+
+  relays.forEach((relay, index) => {
+    area.innerHTML += `
+      <div class="card">
+        <h2>RELAY ${index + 1}</h2>
+        <button id="btn${index}" onclick="pressRelay('${relay}', ${index})">
+          PRESS ONCE
+        </button>
+        <div class="status" id="status${index}">READY</div>
+      </div>
+    `;
+  });
+}
+
+async function pressRelay(relay, index) {
+
+  const button = document.getElementById("btn" + index);
+  const status = document.getElementById("status" + index);
 
   button.disabled = true;
-  status.textContent = "Sending command...";
+  status.textContent = "SENDING...";
 
   try {
 
-    // Send TRUE to Firebase
-    const response = await fetch(
-      `${FIREBASE_URL}/RelayTesting/${relayName}.json`,
+    // Reset first to ensure a fresh rising edge
+    let response = await fetch(
+      `${FIREBASE}/${relay}.json`,
       {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(true)
+        headers: {"Content-Type": "application/json"},
+        body: "false"
       }
     );
 
-    if (!response.ok) {
-      throw new Error("Firebase write failed");
-    }
+    if (!response.ok) throw new Error("Firebase reset failed");
 
-    status.textContent = "Command sent!";
+    // Send one-click command
+    response = await fetch(
+      `${FIREBASE}/${relay}.json`,
+      {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: "true"
+      }
+    );
 
-    // Keep TRUE briefly so ESP32 can detect it
+    if (!response.ok) throw new Error("Firebase ON failed");
+
+    status.textContent = "COMMAND SENT";
+
+    // Keep command ON long enough for ESP32 to read
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Reset Firebase to FALSE
-    const resetResponse = await fetch(
-      `${FIREBASE_URL}/RelayTesting/${relayName}.json`,
+    // Reset command
+    response = await fetch(
+      `${FIREBASE}/${relay}.json`,
       {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(false)
+        headers: {"Content-Type": "application/json"},
+        body: "false"
       }
     );
 
-    if (!resetResponse.ok) {
-      throw new Error("Firebase reset failed");
-    }
+    if (!response.ok) throw new Error("Firebase OFF failed");
 
-    status.textContent = "Ready for next press";
+    status.textContent = "READY";
 
   } catch (error) {
-
-    status.textContent = "Error: Check Firebase connection";
+    status.textContent = "FIREBASE ERROR";
     console.error(error);
 
   } finally {
@@ -184,72 +140,24 @@ async function pressRelay(relayName, button) {
   }
 }
 
+createButtons();
 
-// Check Firebase connection
 async function checkFirebase() {
-
-  const connection = document.getElementById("connection");
-
   try {
-
-    const response = await fetch(
-      `${FIREBASE_URL}/RelayTesting.json`
-    );
-
-    if (!response.ok) {
-      throw new Error("Connection failed");
-    }
-
-    connection.textContent = "Firebase Connected";
-    connection.style.color = "#4ade80";
-
-  } catch (error) {
-
-    connection.textContent = "Firebase Disconnected";
-    connection.style.color = "#f87171";
-
-  }
-}
-
-
-// Initialize all relay commands as OFF
-async function initializeFirebase() {
-
-  try {
-
-    const response = await fetch(
-      `${FIREBASE_URL}/RelayTesting.json`,
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          Relay1: false,
-          Relay2: false,
-          Relay3: false
-        })
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error("Initialization failed");
-    }
-
-    checkFirebase();
-
-  } catch (error) {
+    const response = await fetch(`${FIREBASE}.json`);
+    if (!response.ok) throw new Error();
 
     document.getElementById("connection").textContent =
-      "Firebase Initialization Failed";
+      "FIREBASE CONNECTED";
 
-    console.error(error);
+  } catch (error) {
+    document.getElementById("connection").textContent =
+      "FIREBASE DISCONNECTED";
   }
 }
 
-initializeFirebase();
+checkFirebase();
 
 </script>
-
 </body>
 </html>
