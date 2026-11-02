@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Relay Push Button Control</title>
+<title>ESP32 Relay Control</title>
 
 <style>
 body {
@@ -33,10 +33,12 @@ button {
   color: white;
   font-size: 18px;
   font-weight: bold;
+  cursor: pointer;
 }
 
 button:disabled {
   background: #64748b;
+  cursor: not-allowed;
 }
 
 .status {
@@ -51,32 +53,58 @@ button:disabled {
 <h1>ESP32 RELAY CONTROL</h1>
 <p>ONE CLICK PUSH BUTTON</p>
 
-<div id="connection">Connecting...</div>
+<div id="connection">Connecting to Firebase...</div>
 
 <div id="buttons"></div>
 
 <script>
+
+// =====================================
+// FIREBASE DATABASE
+// =====================================
 
 const FIREBASE =
 "https://relay-testing-f5dfd-default-rtdb.asia-southeast1.firebasedatabase.app/RelayTesting";
 
 const relays = ["Relay1", "Relay2", "Relay3"];
 
+// =====================================
+// CREATE BUTTONS
+// =====================================
+
 function createButtons() {
+
   const area = document.getElementById("buttons");
 
   relays.forEach((relay, index) => {
+
     area.innerHTML += `
       <div class="card">
+
         <h2>RELAY ${index + 1}</h2>
-        <button id="btn${index}" onclick="pressRelay('${relay}', ${index})">
+
+        <button
+          id="btn${index}"
+          onclick="pressRelay('${relay}', ${index})">
+
           PRESS ONCE
+
         </button>
-        <div class="status" id="status${index}">READY</div>
+
+        <div class="status" id="status${index}">
+          READY
+        </div>
+
       </div>
     `;
+
   });
+
 }
+
+// =====================================
+// PRESS RELAY BUTTON
+// =====================================
 
 async function pressRelay(relay, index) {
 
@@ -84,80 +112,117 @@ async function pressRelay(relay, index) {
   const status = document.getElementById("status" + index);
 
   button.disabled = true;
+
   status.textContent = "SENDING...";
 
   try {
 
-    // Reset first to ensure a fresh rising edge
+    // Reset command
     let response = await fetch(
       `${FIREBASE}/${relay}.json`,
       {
         method: "PUT",
-        headers: {"Content-Type": "application/json"},
-        body: "false"
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(false)
       }
     );
 
-    if (!response.ok) throw new Error("Firebase reset failed");
+    if (!response.ok) {
+      throw new Error("Firebase reset failed");
+    }
 
-    // Send one-click command
+    // Send ON command
     response = await fetch(
       `${FIREBASE}/${relay}.json`,
       {
         method: "PUT",
-        headers: {"Content-Type": "application/json"},
-        body: "true"
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(true)
       }
     );
 
-    if (!response.ok) throw new Error("Firebase ON failed");
+    if (!response.ok) {
+      throw new Error("Firebase ON failed");
+    }
 
-    status.textContent = "COMMAND SENT";
+    status.textContent = "RELAY ACTIVATED";
 
-    // Keep command ON long enough for ESP32 to read
+    // Keep command active for 1 second
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Reset command
+    // Send OFF command
     response = await fetch(
       `${FIREBASE}/${relay}.json`,
       {
         method: "PUT",
-        headers: {"Content-Type": "application/json"},
-        body: "false"
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(false)
       }
     );
 
-    if (!response.ok) throw new Error("Firebase OFF failed");
+    if (!response.ok) {
+      throw new Error("Firebase OFF failed");
+    }
 
     status.textContent = "READY";
 
   } catch (error) {
+
     status.textContent = "FIREBASE ERROR";
+
     console.error(error);
 
   } finally {
+
     button.disabled = false;
+
   }
+
 }
 
-createButtons();
+// =====================================
+// FIREBASE CONNECTION CHECK
+// =====================================
 
 async function checkFirebase() {
-  try {
-    const response = await fetch(`${FIREBASE}.json`);
-    if (!response.ok) throw new Error();
 
-    document.getElementById("connection").textContent =
-      "FIREBASE CONNECTED";
+  const connection = document.getElementById("connection");
+
+  try {
+
+    const response = await fetch(`${FIREBASE}.json`);
+
+    if (!response.ok) {
+      throw new Error("Connection failed");
+    }
+
+    connection.textContent = "FIREBASE CONNECTED";
 
   } catch (error) {
-    document.getElementById("connection").textContent =
-      "FIREBASE DISCONNECTED";
+
+    connection.textContent = "FIREBASE DISCONNECTED";
+
+    console.error(error);
+
   }
+
 }
+
+// =====================================
+// START
+// =====================================
+
+createButtons();
 
 checkFirebase();
 
 </script>
+
 </body>
 </html>
